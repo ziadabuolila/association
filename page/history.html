@@ -37,6 +37,116 @@
 </head>
 
 <body>
+  <style>
+    /* يخلي القايمة تطلع برة الجدول */
+    .records-table {
+      overflow: visible !important;
+    }
+
+    td {
+      position: relative;
+    }
+
+    .dropdown {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 🔥 زرار الدروب */
+    .dropdown-toggle {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid #377b41;
+      padding: 15px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: 0.3s;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+      color: #377b41;
+    }
+
+    .dropdown-toggle:hover {
+      background: #377b41;
+      color: white;
+    }
+
+    /* السهم يتحرك */
+    .dropdown-toggle .arrow {
+      transition: 0.3s;
+    }
+
+    .dropdown.active .arrow {
+      transform: rotate(180deg);
+    }
+
+    /* 💎 القائمة */
+    .dropdown-menu {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+      pointer-events: none;
+      transition: 0.2s ease;
+      padding: 6px;
+    }
+
+
+    /* عناصر القائمة */
+    .dropdown-item {
+      padding: 10px 12px;
+      border: none;
+      background: transparent;
+      text-align: right;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 10px;
+      transition: 0.25s;
+      font-size: 14px;
+    }
+
+    /* hover فخم */
+    .dropdown-item:hover {
+      background: rgba(83, 169, 81, 0.1);
+      transform: translateX(-3px);
+    }
+
+    /* حذف بلون مختلف */
+    .dropdown-item.delete:hover {
+      background: rgba(220, 53, 69, 0.1);
+      color: #dc3545;
+    }
+
+    /* أنيميشن */
+    @keyframes dropdownFade {
+      from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .dropdown-menu.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+  </style>
   <!-- ----- Header ----- -->
   <header class="main-header">
     <div class="container">
@@ -428,7 +538,27 @@
     let records = JSON.parse(localStorage.getItem("records")) || [];
     let editIndex = null;
 
-    /* ================= Render Table ================= */
+    let activeMenu = null;
+
+    /* ================= MODAL ================= */
+    function openModal(modal) {
+      modal.classList.add("show");
+      modal.classList.remove("hide");
+
+      setTimeout(() => {
+        const input = modal.querySelector("input");
+        if (input) input.focus();
+      }, 150);
+    }
+
+    function closeModal(modal) {
+      modal.classList.remove("show");
+      modal.classList.add("hide");
+    }
+    document.getElementById("openAddModal").onclick = function () {
+      openModal(document.getElementById("addModal"));
+    };
+    /* ================= RENDER ================= */
     function renderRecords() {
       recordsBody.innerHTML = "";
 
@@ -441,100 +571,177 @@
         <td>${record.activity}</td>
         <td>${record.date}</td>
         <td>
-          <button class="action-btn edit" data-index="${index}">تعديل</button>
-          <button class="action-btn delete" data-index="${index}">حذف</button>
+          <div class="dropdown">
+            <button class="dropdown-toggle" data-index="${index}">
+              <i class="fas fa-cog"></i>
+              <i class="fas fa-chevron-down arrow"></i>
+            </button>
+
+            <div class="dropdown-menu">
+              <button class="dropdown-item edit" data-index="${index}">
+                <i class="fas fa-pen"></i> تعديل
+              </button>
+              <button class="dropdown-item delete" data-index="${index}">
+                <i class="fas fa-trash"></i> حذف
+              </button>
+            </div>
+          </div>
         </td>
       `;
 
         recordsBody.appendChild(row);
       });
 
-      attachButtons();
+      attachActions();
     }
 
-    /* ================= Open Add Modal ================= */
+    /* ================= ADD MODAL ================= */
     openAddModal.onclick = () => {
-      addModal.style.display = "flex";
       document.getElementById("addName").value = "";
       document.getElementById("addActivity").value = "";
       document.getElementById("addDate").value = "";
+
+      openModal(addModal);
     };
 
-    closeAddModal.onclick = () => {
-      addModal.style.display = "none";
-    };
+    closeAddModal.onclick = () => closeModal(addModal);
 
-    /* ================= Save New Record ================= */
     saveAdd.onclick = () => {
       const name = document.getElementById("addName").value.trim();
       const activity = document.getElementById("addActivity").value.trim();
       const date = document.getElementById("addDate").value;
 
-      if (!name || !activity || !date) return;
+      if (!name || !activity || !date) {
+        alert("من فضلك املا كل البيانات");
+        return;
+      }
 
       records.push({ name, activity, date });
       localStorage.setItem("records", JSON.stringify(records));
 
       renderRecords();
-      addModal.style.display = "none";
+      closeModal(addModal);
     };
 
-    /* ================= Buttons (Edit / Delete) ================= */
-    function attachButtons() {
-      document.querySelectorAll(".edit").forEach((btn) => {
-        btn.onclick = () => {
-          editIndex = btn.dataset.index;
+    /* ================= EDIT ================= */
+    function attachActions() {
+      document.querySelectorAll(".edit").forEach(btn => {
+        btn.onclick = function () {
+          editIndex = this.dataset.index;
 
           document.getElementById("editName").value = records[editIndex].name;
-          document.getElementById("editActivity").value =
-            records[editIndex].activity;
+          document.getElementById("editActivity").value = records[editIndex].activity;
           document.getElementById("editDate").value = records[editIndex].date;
 
-          editModal.style.display = "flex";
+          openModal(editModal);
         };
       });
 
-      document.querySelectorAll(".delete").forEach((btn) => {
+      document.querySelectorAll(".delete").forEach(btn => {
         btn.onclick = () => {
-          records.splice(btn.dataset.index, 1);
-          localStorage.setItem("records", JSON.stringify(records));
-          renderRecords();
+          if (confirm("متأكد إنك عايز تحذف؟")) {
+            records.splice(btn.dataset.index, 1);
+            localStorage.setItem("records", JSON.stringify(records));
+            renderRecords();
+          }
         };
       });
     }
 
-    /* ================= Save Edit ================= */
-    saveEdit.onclick = () => {
+    saveEdit.onclick = function () {
+      const name = document.getElementById("editName").value.trim();
+      const activity = document.getElementById("editActivity").value.trim();
+      const date = document.getElementById("editDate").value;
+
+      if (!name || !activity || !date) {
+        alert("من فضلك املا كل البيانات");
+        return;
+      }
+
       records[editIndex] = {
-        name: document.getElementById("editName").value.trim(),
-        activity: document.getElementById("editActivity").value.trim(),
-        date: document.getElementById("editDate").value,
+        name,
+        activity,
+        date
       };
 
       localStorage.setItem("records", JSON.stringify(records));
+
       renderRecords();
-      editModal.style.display = "none";
+
+      closeModal(editModal);
     };
+    closeEditModal.onclick = () => closeModal(editModal);
 
-    closeEditModal.onclick = () => {
-      editModal.style.display = "none";
-    };
+    /* ================= DROPDOWN (FIXED 100%) ================= */
+    document.addEventListener("click", function (e) {
+      const toggle = e.target.closest(".dropdown-toggle");
 
-    /* ================= Search ================= */
-    document
-      .getElementById("searchInput")
-      .addEventListener("input", function () {
-        const key = this.value.toLowerCase();
-        const rows = document.querySelectorAll(".record-row");
+      // 🔥 فتح القائمة
+      if (toggle) {
+        const dropdown = toggle.closest(".dropdown");
+        const menu = dropdown.querySelector(".dropdown-menu");
 
-        rows.forEach((row) => {
-          row.style.display = row.textContent.toLowerCase().includes(key)
-            ? ""
-            : "none";
-        });
+        // اقفل أي قائمة تانية
+        if (activeMenu && activeMenu !== menu) {
+          activeMenu.classList.remove("show");
+        }
+
+        const rect = toggle.getBoundingClientRect();
+
+        // نخليها "لزقة في الزر"
+        dropdown.style.position = "relative";
+
+        menu.style.position = "absolute";
+        menu.style.top = rect.height + 8 + "px";
+        menu.style.left = "0px";
+        menu.style.minWidth = "170px";
+
+        menu.classList.toggle("show");
+
+        activeMenu = menu.classList.contains("show") ? menu : null;
+
+        return;
+      }
+
+      // ❌ قفل عند الضغط برا
+      if (activeMenu) {
+        activeMenu.classList.remove("show");
+        activeMenu = null;
+      }
+    });
+
+    /* ================= CLOSE MODAL OUTSIDE ================= */
+    document.addEventListener("click", function (e) {
+      if (e.target.classList.contains("modal")) {
+        closeModal(e.target);
+      }
+    });
+
+    /* ================= ESC KEY ================= */
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        closeModal(addModal);
+        closeModal(editModal);
+
+        if (activeDropdown) {
+          activeDropdown.classList.remove("show");
+          activeDropdown = null;
+        }
+      }
+    });
+
+    /* ================= SEARCH ================= */
+    document.getElementById("searchInput").addEventListener("input", function () {
+      const key = this.value.toLowerCase();
+
+      document.querySelectorAll(".record-row").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(key)
+          ? ""
+          : "none";
       });
+    });
 
-    /* ================= Load Data On Page Load ================= */
+    /* ================= INIT ================= */
     renderRecords();
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/js/all.min.js"></script>
